@@ -3,7 +3,7 @@
 # and optimized by myself
 #
 
-modname ?= mydriver
+modname ?= sbd
 
 #==========================================================
 ifneq ($(KERNELRELEASE),)

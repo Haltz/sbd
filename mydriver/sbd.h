@@ -2,11 +2,37 @@
 
 #define S_MAJOR 244
 #define S_MINORS 16
-#define DEVICE_NAME "sdriver"
+#define DEVICE_NAME "sbd"
 
 #ifndef S_PARTITIONS
 #define S_PARTITIONS (16)
 #endif
+
+/* These two define direction. */
+#define S_BLK_T_IN 0
+#define S_BLK_T_OUT 1
+
+#ifndef S_BLK_NO_LEGACY
+/* This bit says it's a scsi command, not an actual read or write. */
+#define S_BLK_T_SCSI_CMD 2
+#endif /* S_BLK_NO_LEGACY */
+
+/* Cache flush command */
+#define S_BLK_T_FLUSH 4
+
+/* Get device ID command */
+#define S_BLK_T_GET_ID 8
+
+/* Discard command */
+#define S_BLK_T_DISCARD 11
+
+/* Write zeroes command */
+#define S_BLK_T_WRITE_ZEROES 13
+
+#ifndef S_BLK_NO_LEGACY
+/* Barrier before this op. */
+#define S_BLK_T_BARRIER 0x80000000
+#endif /* !S_BLK_NO_LEGACY */
 
 enum
 {
@@ -42,10 +68,10 @@ enum
     DEVFL_FREED = (1 << 8)
 };
 
-typedef struct sblk_req_s
+typedef struct sbd_cmd_s
 {
     blk_status_t status;
-} sblk_req_t;
+} sbd_cmd_t;
 
 typedef struct sdev_s
 {
@@ -59,6 +85,7 @@ typedef struct sdev_s
     struct blk_mq_tag_set tag_set;
 
     spinlock_t lock;
+    struct mutex sblk_mutex;
     struct list_head rq_list;
 
     struct request_queue *blkq;
@@ -66,6 +93,8 @@ typedef struct sdev_s
     sector_t nr_sectors;
 
     char ident[512];
+
+    char *cache;
 
 } sdev_t;
 

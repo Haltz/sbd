@@ -16,12 +16,10 @@ static void sbd_block_transfer(sdev_t *dev, size_t start, size_t len, char *buff
     if (dir)
     {
         memcpy(dev->cache + cache_offset, buffer, len);
-        pr_info("Write Try Good.");
     }
     else
     {
         memcpy(dev->cache + cache_offset, buffer, len);
-        pr_info("Read Try Good.");
     }
 }
 
@@ -57,16 +55,16 @@ static blk_status_t sblk_queue_rq(struct blk_mq_hw_ctx *hctx, const struct blk_m
         break;
     default:
         // WARN_ON_ONCE(1);
-        printk(KERN_ERR "OP_ERR: %s", blk_op_str(req_op(req)));
+        pr_err("Operation: %s not supported.", blk_op_str(req_op(req)));
         return BLK_STS_IOERR;
     }
 
     blk_mq_start_request(req);
 
-    printk(KERN_INFO "OP_INFO: %s", blk_op_str(req_op(req)));
+    pr_info("Operation is %s.", blk_op_str(req_op(req)));
     if (type)
     {
-        pr_err("OP: NOT READ OR WRITE. NOT SUPPORTED.");
+        pr_err("Operation: %s not supported.", blk_op_str(req_op(req)));
         blk_mq_end_request(req, BLK_STS_NOTSUPP);
         return BLK_STS_NOTSUPP;
     }
@@ -147,19 +145,40 @@ static void sblk_release(struct gendisk *disk, fmode_t mode)
 static int sblk_rw_page(struct block_device *bdev, sector_t sector, struct page *page, unsigned int req_op)
 {
     sdev_t *d = bdev->bd_disk->private_data;
-    pr_info("rw_page call");
-    switch (req_op)
+    char *buffer = kmap_atomic(page);
+    char *cache_start = d->cache + sector * 512;
+    char *cache_end = d->cache + 2 * MB / 8;
+    bool is_write = req_op == REQ_OP_READ ? 0 : 1;
+    size_t page_ssize = page_size(page);
+    int err = 0;
+
+    pr_info("cache: %lx\t sector: %lx\t cache_start: %lx\t page_size: %lx\t access_mem: %lx\t cache_end: %lx", d->cache, sector, cache_start, page_ssize, cache_start + page_ssize, cache_end);
+
+    if (is_write)
     {
-    case REQ_OP_READ:
-        pr_info("Read");
-        break;
-    case REQ_OP_WRITE:
-        pr_info("Write");
-        break;
-    default:
-        pr_err("not supported");
+        if (cache_start + page_ssize > cache_end)
+        {
+            err = -1;
+            goto end;
+        }
+        memcpy(cache_start, buffer, page_ssize);
+        pr_info("Write Page");
     }
-    return 0;
+    else
+    {
+        if (cache_start + page_ssize > cache_end)
+        {
+            err = -1;
+            goto end;
+        }
+        memcpy(buffer, cache_start, page_ssize);
+        pr_info("Read Page");
+    }
+
+end:
+    page_endio(page, is_write, err);
+    pr_err("Cross Edge.");
+    return err;
 }
 
 static int sblk_ioctl(struct block_device *bdev, fmode_t mode, unsigned cmd, unsigned long arg)

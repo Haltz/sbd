@@ -34,6 +34,9 @@
 #define S_BLK_T_BARRIER 0x80000000
 #endif /* !S_BLK_NO_LEGACY */
 
+
+#define pr_info_sbd(s) pr_info("[sbd]:" \ s);
+
 enum
 {
     KB = 1024,
